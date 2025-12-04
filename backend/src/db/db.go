@@ -16,36 +16,30 @@ import (
 var DB *gorm.DB
 
 func InitDB() error {
-	var err error
-
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return fmt.Errorf("DATABASE_URL environment variable is not set")
 	}
 
-	config := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	}
-
 	var dialector gorm.Dialector
 	if strings.HasPrefix(dbURL, "sqlite://") {
 		sqlitePath := strings.TrimPrefix(dbURL, "sqlite://")
-
-		dir := filepath.Dir(sqlitePath)
-		if dir != "" && dir != "." {
+		if dir := filepath.Dir(sqlitePath); dir != "" && dir != "." {
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return fmt.Errorf("failed to create database directory: %w", err)
 			}
 		}
-
 		dialector = sqlite.Open(sqlitePath)
 	} else if strings.HasPrefix(dbURL, "postgres://") || strings.HasPrefix(dbURL, "postgresql://") {
 		dialector = postgres.Open(dbURL)
 	} else {
-		return fmt.Errorf("unsupported database URL format: must start with sqlite://, postgres://, or postgresql://")
+		return fmt.Errorf("unsupported database URL format")
 	}
 
-	DB, err = gorm.Open(dialector, config)
+	var err error
+	DB, err = gorm.Open(dialector, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		return fmt.Errorf("error opening database: %w", err)
 	}
@@ -62,7 +56,7 @@ func InitDB() error {
 		return fmt.Errorf("error connecting to database: %w", err)
 	}
 
-	log.Println("Database connection established successfully")
+	log.Println("Database connection established")
 
 	if err = Migrate(); err != nil {
 		return fmt.Errorf("error running migrations: %w", err)
@@ -147,6 +141,27 @@ type Deposit struct {
 	Reference     string `gorm:"index"`
 }
 
+type Block struct {
+	gorm.Model
+	BlockNumber     uint   `gorm:"uniqueIndex;not null"`
+	PreviousHash    string `gorm:"type:varchar(64);not null"`
+	TransactionID   string `gorm:"uniqueIndex;not null"`
+	TransactionHash string `gorm:"type:varchar(64);not null"`
+	BlockHash       string `gorm:"type:varchar(64);uniqueIndex;not null"`
+	Timestamp       int64  `gorm:"not null;index"`
+	Nonce           uint64 `gorm:"default:0"`
+}
+
+type Session struct {
+	gorm.Model
+	SessionID string `gorm:"uniqueIndex;not null"`
+	UserID    uint   `gorm:"not null;index"`
+	User      User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	ExpiresAt int64  `gorm:"not null;index"`
+	IPAddress string
+	UserAgent string
+}
+
 func Migrate() error {
 	log.Println("Running database migrations...")
 
@@ -157,12 +172,19 @@ func Migrate() error {
 		&Loan{},
 		&LoanPayment{},
 		&Deposit{},
+		&Block{},
+		&Session{},
 	)
 	if err != nil {
 		return fmt.Errorf("migration failed: %w", err)
 	}
 
 	log.Println("Database migrations completed successfully")
+
+	if err := InitializeBlockchain(); err != nil {
+		return fmt.Errorf("blockchain initialization failed: %w", err)
+	}
+
 	return nil
 }
 

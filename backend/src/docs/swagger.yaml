@@ -1,0 +1,224 @@
+basePath: /
+definitions:
+  handlers.ErrorResponse:
+    properties:
+      error:
+        example: Invalid request
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      phone_number:
+        example: "+1234567890"
+        type: string
+    required:
+    - phone_number
+    type: object
+  handlers.LoginResponse:
+    properties:
+      ok:
+        example: true
+        type: boolean
+      request_id:
+        example: 123
+        type: integer
+    type: object
+  handlers.MeResponse:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      is_active:
+        example: true
+        type: boolean
+      name:
+        example: John Doe
+        type: string
+      phone_number:
+        example: "+1234567890"
+        type: string
+      savings_balance:
+        example: 5000
+        type: integer
+      shares_balance:
+        example: 1000
+        type: integer
+    type: object
+  handlers.VerifyRequest:
+    properties:
+      otp:
+        example: "123456"
+        type: string
+      phone_number:
+        example: "+1234567890"
+        type: string
+      request_id:
+        example: 123
+        type: integer
+    required:
+    - otp
+    - phone_number
+    - request_id
+    type: object
+  handlers.VerifyResponse:
+    properties:
+      ok:
+        example: true
+        type: boolean
+      session:
+        example: abc123def456...
+        type: string
+    type: object
+  routes.HealthResponse:
+    properties:
+      status:
+        example: healthy
+        type: string
+    type: object
+  routes.IndexResponse:
+    properties:
+      message:
+        example: API is running
+        type: string
+      version:
+        example: 1.0.0
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@8mh.com
+    name: API Support
+  description: API for 8MH cooperative banking system with blockchain verification
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: 8MH API
+  version: "1.0"
+paths:
+  /:
+    get:
+      description: Returns API status and version
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.IndexResponse'
+      summary: API Index
+      tags:
+      - general
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Send OTP to the provided phone number for authentication
+      parameters:
+      - description: Login Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "429":
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Request OTP for phone number
+      tags:
+      - auth
+  /api/v1/auth/me:
+    get:
+      description: Get authenticated user's profile and account information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MeResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - SessionAuth: []
+      summary: Get current user information
+      tags:
+      - auth
+  /api/v1/auth/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify the OTP code and create an authenticated session
+      parameters:
+      - description: Verify Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.VerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.VerifyResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Invalid OTP or expired
+          schema:
+            $ref: '#/definitions/handlers.VerifyResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Verify OTP and create session
+      tags:
+      - auth
+  /health:
+    get:
+      description: Returns health status of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.HealthResponse'
+      summary: Health Check
+      tags:
+      - general
+schemes:
+- http
+- https
+securityDefinitions:
+  SessionAuth:
+    in: cookie
+    name: session_id
+    type: apiKey
+swagger: "2.0"
