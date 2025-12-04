@@ -519,6 +519,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/loans/payment": {
+            "post": {
+                "security": [
+                    {
+                        "SessionAuth": []
+                    }
+                ],
+                "description": "Member makes a payment towards their loan, creates transaction and blockchain block",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "loans"
+                ],
+                "summary": "Make a loan payment",
+                "parameters": [
+                    {
+                        "description": "Make Payment Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MakePaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.MakePaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/loans/request": {
             "post": {
                 "security": [
@@ -842,6 +911,10 @@ const docTemplate = `{
         "handlers.HomeResponse": {
             "type": "object",
             "properties": {
+                "blockchain_integrity": {
+                    "type": "boolean",
+                    "example": true
+                },
                 "dividend_expected": {
                     "type": "integer",
                     "example": 5000
@@ -1010,6 +1083,50 @@ const docTemplate = `{
                 "request_id": {
                     "type": "integer",
                     "example": 123
+                }
+            }
+        },
+        "handlers.MakePaymentRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "interest_amount",
+                "loan_id",
+                "principal_amount"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "example": 9000
+                },
+                "interest_amount": {
+                    "type": "integer",
+                    "example": 1000
+                },
+                "loan_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "principal_amount": {
+                    "type": "integer",
+                    "example": 8000
+                }
+            }
+        },
+        "handlers.MakePaymentResponse": {
+            "type": "object",
+            "properties": {
+                "balance_after": {
+                    "type": "integer",
+                    "example": 86000
+                },
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "transaction_id": {
+                    "type": "string",
+                    "example": "TXN-1234567890"
                 }
             }
         },

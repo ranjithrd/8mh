@@ -1,6 +1,7 @@
 package main
 
 import (
+	"backend/src/blockchain"
 	"backend/src/db"
 	_ "backend/src/docs"
 	"backend/src/handlers"
@@ -40,6 +41,12 @@ func main() {
 
 	if err := db.InitDB(); err != nil {
 		log.Fatal("Failed to initialize database:", err)
+	}
+
+	// Initialize Ethereum client (optional - continues without Sepolia if not configured)
+	if err := blockchain.InitEthereum(); err != nil {
+		log.Printf("WARNING: Sepolia integration not available: %v", err)
+		log.Println("Continuing with local blockchain only...")
 	}
 
 	handlers.InitAuthHandlers()

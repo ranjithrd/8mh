@@ -70,6 +70,9 @@ definitions:
     type: object
   handlers.HomeResponse:
     properties:
+      blockchain_integrity:
+        example: true
+        type: boolean
       dividend_expected:
         example: 5000
         type: integer
@@ -191,6 +194,38 @@ definitions:
       request_id:
         example: 123
         type: integer
+    type: object
+  handlers.MakePaymentRequest:
+    properties:
+      amount:
+        example: 9000
+        type: integer
+      interest_amount:
+        example: 1000
+        type: integer
+      loan_id:
+        example: 1
+        type: integer
+      principal_amount:
+        example: 8000
+        type: integer
+    required:
+    - amount
+    - interest_amount
+    - loan_id
+    - principal_amount
+    type: object
+  handlers.MakePaymentResponse:
+    properties:
+      balance_after:
+        example: 86000
+        type: integer
+      ok:
+        example: true
+        type: boolean
+      transaction_id:
+        example: TXN-1234567890
+        type: string
     type: object
   handlers.ManagerInfo:
     properties:
@@ -764,6 +799,51 @@ paths:
       security:
       - SessionAuth: []
       summary: Get member's loans
+      tags:
+      - loans
+  /api/v1/loans/payment:
+    post:
+      consumes:
+      - application/json
+      description: Member makes a payment towards their loan, creates transaction
+        and blockchain block
+      parameters:
+      - description: Make Payment Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.MakePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.MakePaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - SessionAuth: []
+      summary: Make a loan payment
       tags:
       - loans
   /api/v1/loans/request:

@@ -159,6 +159,7 @@ type Block struct {
 	BlockHash       string `gorm:"type:varchar(64);uniqueIndex;not null"`
 	Timestamp       int64  `gorm:"not null;index"`
 	Nonce           uint64 `gorm:"default:0"`
+	EthereumTxHash  string `gorm:"type:varchar(66);index"` // Sepolia transaction hash (0x...)
 }
 
 type Session struct {

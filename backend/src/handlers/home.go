@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"backend/src/db"
 	"backend/src/repos"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -12,12 +15,51 @@ var (
 	loanRepo  = repos.LoanRepo{}
 )
 
+var (
+	blockchainVerificationCache struct {
+		sync.RWMutex
+		isValid       bool
+		lastChecked   time.Time
+		cacheDuration time.Duration
+	}
+)
+
+func init() {
+	blockchainVerificationCache.cacheDuration = 10 * time.Second
+	blockchainVerificationCache.isValid = true
+	blockchainVerificationCache.lastChecked = time.Time{}
+}
+
+func getBlockchainIntegrity() bool {
+	blockchainVerificationCache.RLock()
+	if time.Since(blockchainVerificationCache.lastChecked) < blockchainVerificationCache.cacheDuration {
+		cached := blockchainVerificationCache.isValid
+		blockchainVerificationCache.RUnlock()
+		return cached
+	}
+	blockchainVerificationCache.RUnlock()
+
+	blockchainVerificationCache.Lock()
+	defer blockchainVerificationCache.Unlock()
+
+	if time.Since(blockchainVerificationCache.lastChecked) < blockchainVerificationCache.cacheDuration {
+		return blockchainVerificationCache.isValid
+	}
+
+	valid, _ := db.VerifyEntireChain()
+	blockchainVerificationCache.isValid = valid
+	blockchainVerificationCache.lastChecked = time.Now()
+
+	return valid
+}
+
 type HomeResponse struct {
-	TotalAssets      int64  `json:"total_assets" example:"1000000"`
-	TotalLoans       int64  `json:"total_loans" example:"500000"`
-	TotalProfit      int64  `json:"total_profit" example:"50000"`
-	DividendExpected *int64 `json:"dividend_expected,omitempty" example:"5000"`
-	Role             string `json:"role" example:"member"`
+	TotalAssets         int64  `json:"total_assets" example:"1000000"`
+	TotalLoans          int64  `json:"total_loans" example:"500000"`
+	TotalProfit         int64  `json:"total_profit" example:"50000"`
+	DividendExpected    *int64 `json:"dividend_expected,omitempty" example:"5000"`
+	Role                string `json:"role" example:"member"`
+	BlockchainIntegrity bool   `json:"blockchain_integrity" example:"true"`
 }
 
 // Home godoc
@@ -49,10 +91,11 @@ func Home(c echo.Context) error {
 	}
 
 	response := HomeResponse{
-		TotalAssets: totalAssets,
-		TotalLoans:  totalLoans,
-		TotalProfit: totalProfit,
-		Role:        user.Role,
+		TotalAssets:         totalAssets,
+		TotalLoans:          totalLoans,
+		TotalProfit:         totalProfit,
+		Role:                user.Role,
+		BlockchainIntegrity: getBlockchainIntegrity(),
 	}
 
 	if user.Role == "member" {

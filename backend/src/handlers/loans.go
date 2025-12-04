@@ -505,10 +505,6 @@ func AddDeposit(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create transaction"})
 	}
 
-	if _, err := db.CreateBlockForTransaction(transactionID); err != nil {
-		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create blockchain entry"})
-	}
-
 	if err := depositRepoHandler.UpdateUserBalance(req.UserID, req.Amount); err != nil {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update user balance"})
 	}
@@ -580,4 +576,112 @@ func SetInterestRate(c echo.Context) error {
 
 func generateTransactionID() string {
 	return fmt.Sprintf("TXN-%d", time.Now().UnixNano())
+}
+
+type MakePaymentRequest struct {
+	LoanID          uint `json:"loan_id" binding:"required" example:"1"`
+	Amount          int  `json:"amount" binding:"required" example:"9000"`
+	PrincipalAmount int  `json:"principal_amount" binding:"required" example:"8000"`
+	InterestAmount  int  `json:"interest_amount" binding:"required" example:"1000"`
+}
+
+type MakePaymentResponse struct {
+	OK            bool   `json:"ok" example:"true"`
+	TransactionID string `json:"transaction_id" example:"TXN-1234567890"`
+	BalanceAfter  int    `json:"balance_after" example:"86000"`
+}
+
+// MakePayment godoc
+// @Summary Make a loan payment
+// @Description Member makes a payment towards their loan, creates transaction and blockchain block
+// @Tags loans
+// @Accept json
+// @Produce json
+// @Security SessionAuth
+// @Param request body MakePaymentRequest true "Make Payment Request"
+// @Success 200 {object} MakePaymentResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 403 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/v1/loans/payment [post]
+func MakePayment(c echo.Context) error {
+	user := c.Get("user").(*repos.UserWithSession)
+
+	var req MakePaymentRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request"})
+	}
+
+	loan, err := loanRepoHandler.GetByID(req.LoanID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, ErrorResponse{Error: "Loan not found"})
+	}
+
+	if loan.BorrowerID != user.ID {
+		return c.JSON(http.StatusForbidden, ErrorResponse{Error: "Not authorized to pay this loan"})
+	}
+
+	if loan.Status != "Approved" && loan.Status != "Disbursed" {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Loan is not active"})
+	}
+
+	transactionID := transactionGenerator()
+
+	newBalance := loan.OutstandingBalance - req.PrincipalAmount
+	if newBalance < 0 {
+		newBalance = 0
+	}
+
+	payment := &db.LoanPayment{
+		LoanID:          req.LoanID,
+		TransactionID:   transactionID,
+		Amount:          req.Amount,
+		PrincipalAmount: req.PrincipalAmount,
+		InterestAmount:  req.InterestAmount,
+		BalanceAfter:    newBalance,
+		Status:          "completed",
+		PaymentDate:     time.Now().Unix(),
+	}
+
+	if err := db.DB.Create(payment).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create payment"})
+	}
+
+	transaction := &db.Transaction{
+		TransactionID: transactionID,
+		Type:          "loan_payment",
+		FromAccount:   fmt.Sprintf("USER-%d", user.ID),
+		ToAccount:     "BANK",
+		Amount:        req.Amount,
+		Status:        "completed",
+		Description:   fmt.Sprintf("Loan payment for loan #%d", req.LoanID),
+	}
+
+	if err := db.DB.Create(transaction).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create transaction"})
+	}
+
+	if _, err := db.CreateBlockForTransaction(transactionID); err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to create blockchain entry"})
+	}
+
+	if err := db.DB.Model(&db.Loan{}).Where("id = ?", req.LoanID).Update("outstanding_balance", newBalance).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update loan balance"})
+	}
+
+	if newBalance == 0 {
+		paidOffAt := time.Now().Unix()
+		db.DB.Model(&db.Loan{}).Where("id = ?", req.LoanID).Updates(map[string]interface{}{
+			"status":      "PaidOff",
+			"paid_off_at": paidOffAt,
+		})
+	}
+
+	return c.JSON(http.StatusOK, MakePaymentResponse{
+		OK:            true,
+		TransactionID: transactionID,
+		BalanceAfter:  newBalance,
+	})
 }

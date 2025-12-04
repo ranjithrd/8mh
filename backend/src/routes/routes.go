@@ -69,6 +69,7 @@ func RegisterRoutes(e *echo.Echo) {
 	loans.POST("/:id/update_status", handlers.UpdateLoanStatus, middleware.RequireManager)
 	loans.POST("/request", handlers.RequestLoan, middleware.RequireMember)
 	loans.POST("/add", handlers.AddLoan, middleware.RequireManager)
+	loans.POST("/payment", handlers.MakePayment, middleware.RequireMember)
 
 	api.POST("/deposit", handlers.AddDeposit, middleware.Auth, middleware.RequireManager)
 }
