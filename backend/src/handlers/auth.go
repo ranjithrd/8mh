@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"gorm.io/gorm"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -33,11 +33,11 @@ func InitAuthHandlers() {
 
 type LoginRequest struct {
 	PhoneNumber string `json:"phone_number" validate:"required" example:"+1234567890"`
+	Password    string `json:"password" validate:"required" example:"password123"`
 }
 
 type LoginResponse struct {
-	OK        bool  `json:"ok" example:"true"`
-	RequestID *uint `json:"request_id" example:"123"`
+	OK bool `json:"ok" example:"true"`
 }
 
 type ErrorResponse struct {
@@ -45,15 +45,15 @@ type ErrorResponse struct {
 }
 
 // Login godoc
-// @Summary Request OTP for phone number
-// @Description Send OTP to the provided phone number for authentication
+// @Summary Login with phone and password
+// @Description Authenticate with phone number and password
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Param request body LoginRequest true "Login Request"
 // @Success 200 {object} LoginResponse
 // @Failure 400 {object} ErrorResponse
-// @Failure 429 {object} LoginResponse "Rate limit exceeded"
+// @Failure 401 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/v1/auth/login [post]
 func Login(c echo.Context) error {
@@ -62,36 +62,41 @@ func Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	count, err := otpRepo.CountRecentByPhoneNumber(req.PhoneNumber, OTPRateLimitMinutes)
-	if err == nil && count >= OTPRateLimit {
-		return c.JSON(http.StatusTooManyRequests, LoginResponse{OK: false, RequestID: nil})
-	}
-
 	user, err := userRepo.FindByPhoneNumber(req.PhoneNumber)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			user, err = userRepo.Create(req.PhoneNumber, "")
-			if err != nil {
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
-			}
-		} else {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Database error"})
-		}
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 	}
 
-	otpCode := generateOTP()
-	expiresAt := time.Now().Add(OTPExpiryMinutes * time.Minute).Unix()
+	if user.Password == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Password not set"})
+	}
 
-	otp, err := otpRepo.Create(user.ID, otpCode, expiresAt)
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+	}
+
+	sessionID := generateSessionID()
+	expiresAt := time.Now().Add(SessionExpiryHours * time.Hour).Unix()
+	ipAddress := c.RealIP()
+	userAgent := c.Request().UserAgent()
+
+	session, err := sessionRepo.Create(user.ID, sessionID, expiresAt, ipAddress, userAgent)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create OTP"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
 	}
 
-	if err := smsService.SendOTP(req.PhoneNumber, otpCode); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to send OTP"})
+	cookie := &http.Cookie{
+		Name:     "session_id",
+		Value:    session.SessionID,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		MaxAge:   int(SessionExpiryHours * 3600),
+		SameSite: http.SameSiteLaxMode,
 	}
+	c.SetCookie(cookie)
 
-	return c.JSON(http.StatusOK, LoginResponse{OK: true, RequestID: &otp.ID})
+	return c.JSON(http.StatusOK, LoginResponse{OK: true})
 }
 
 type VerifyRequest struct {

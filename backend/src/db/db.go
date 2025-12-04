@@ -70,6 +70,7 @@ type User struct {
 	PhoneNumber    string `gorm:"uniqueIndex;not null"`
 	Name           string `gorm:"not null"`
 	Email          string `gorm:"index"`
+	Password       string `gorm:"type:varchar(255)"`
 	Role           string `gorm:"type:varchar(20);default:'member';not null;index"`
 	SavingsBalance int    `gorm:"default:0;not null"`
 	SharesBalance  int    `gorm:"default:0;not null"`
