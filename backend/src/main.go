@@ -54,7 +54,19 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:4000",
+			"http://localhost:5173",
+			"http://localhost:8000",
+			"http://localhost:8080",
+			"https://8mh-ui.d.p.ranjithrd.in",
+		},
+		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.PATCH, echo.OPTIONS},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowCredentials: true,
+	}))
 
 	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
