@@ -99,6 +99,39 @@ func Login(c echo.Context) error {
 	return c.JSON(http.StatusOK, LoginResponse{OK: true})
 }
 
+// Logout godoc
+// @Summary Logout
+// @Description Logout and invalidate session
+// @Tags auth
+// @Produce json
+// @Success 200 {object} LoginResponse
+// @Failure 401 {object} ErrorResponse
+// @Security SessionAuth
+// @Router /api/v1/auth/logout [post]
+func Logout(c echo.Context) error {
+	cookie, err := c.Cookie("session_id")
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Not logged in"})
+	}
+
+	if err := sessionRepo.Delete(cookie.Value); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to logout"})
+	}
+
+	// Clear the cookie
+	c.SetCookie(&http.Cookie{
+		Name:     "session_id",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		MaxAge:   -1,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	return c.JSON(http.StatusOK, LoginResponse{OK: true})
+}
+
 type VerifyRequest struct {
 	PhoneNumber string `json:"phone_number" validate:"required" example:"+1234567890"`
 	RequestID   uint   `json:"request_id" validate:"required" example:"123"`

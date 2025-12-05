@@ -439,6 +439,25 @@ paths:
       summary: Login with phone and password
       tags:
       - auth
+  /api/v1/auth/logout:
+    post:
+      description: Logout and invalidate session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.LoginResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - SessionAuth: []
+      summary: Logout
+      tags:
+      - auth
   /api/v1/auth/me:
     get:
       description: Get authenticated user's profile and account information

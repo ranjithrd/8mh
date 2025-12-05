@@ -54,6 +54,7 @@ func RegisterRoutes(e *echo.Echo) {
 
 	auth := api.Group("/auth")
 	auth.POST("/login", handlers.Login, middleware.RateLimiter(8))
+	auth.POST("/logout", handlers.Logout, middleware.Auth)
 	auth.POST("/verify", handlers.Verify)
 	auth.GET("/me", handlers.Me, middleware.Auth)
 
