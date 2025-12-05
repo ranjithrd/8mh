@@ -73,4 +73,8 @@ func RegisterRoutes(e *echo.Echo) {
 	loans.POST("/payment", handlers.MakePayment, middleware.RequireMember)
 
 	api.POST("/deposit", handlers.AddDeposit, middleware.Auth, middleware.RequireManager)
+
+	users := api.Group("/users", middleware.Auth, middleware.RequireManager)
+	users.GET("", handlers.ListUsers)
+	users.GET("/:id", handlers.GetUserByID)
 }

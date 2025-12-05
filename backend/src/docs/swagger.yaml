@@ -339,6 +339,43 @@ definitions:
         example: true
         type: boolean
     type: object
+  handlers.UserDetailResponse:
+    properties:
+      name:
+        example: John Doe
+        type: string
+      phone_number:
+        example: "+1234567890"
+        type: string
+      savings_balance:
+        example: 50000
+        type: integer
+      shares_balance:
+        example: 25000
+        type: integer
+      user_id:
+        example: 1
+        type: integer
+    type: object
+  handlers.UserListItem:
+    properties:
+      name:
+        example: John Doe
+        type: string
+      phone_number:
+        example: "+1234567890"
+        type: string
+      user_id:
+        example: 1
+        type: integer
+    type: object
+  handlers.UserListResponse:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/handlers.UserListItem'
+        type: array
+    type: object
   handlers.VerifyRequest:
     properties:
       otp:
@@ -906,6 +943,63 @@ paths:
       summary: Request a new loan (member)
       tags:
       - loans
+  /api/v1/users:
+    get:
+      description: Get list of all users, optionally filter by name or phone number
+      parameters:
+      - description: Search by name or phone number
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - SessionAuth: []
+      summary: List/Search Users
+      tags:
+      - users
+  /api/v1/users/{id}:
+    get:
+      description: Get detailed information about a specific user including balances
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UserDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - SessionAuth: []
+      summary: Get User Details
+      tags:
+      - users
   /health:
     get:
       description: Returns health status of the API
