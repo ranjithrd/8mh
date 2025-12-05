@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend/src/blockchain"
 	"backend/src/db"
 	"fmt"
 	"net/http"
@@ -214,14 +215,29 @@ func GetOutstandingLoans(c echo.Context) error {
 		blockchainVerified := false
 		blockchainHash := ""
 
-		// Find the first transaction for this loan
-		var txs []db.Transaction
-		db.DB.Model(&loan).Association("Transactions").Find(&txs)
-		if len(txs) > 0 {
-			db.DB.Where("transaction_id = ?", txs[0].TransactionID).First(&block)
-			if block.EthereumTxHash != "" {
-				blockchainVerified = true
-				blockchainHash = block.EthereumTxHash
+		// Find the first transaction for this loan (loan status change or disbursement)
+		var tx db.Transaction
+		err := db.DB.Where("(type = 'loan_status_change' OR type = 'loan_disbursement') AND (from_account = ? OR to_account LIKE ?)",
+			fmt.Sprintf("LOAN-%d", loan.ID),
+			fmt.Sprintf("%%LOAN-%d%%", loan.ID)).First(&tx).Error
+
+		if err == nil {
+			// Found a transaction, check if it has a block
+			if err := db.DB.Where("transaction_id = ?", tx.TransactionID).First(&block).Error; err == nil {
+				if block.EthereumTxHash != "" {
+					blockchainHash = block.EthereumTxHash
+					// Actually verify against Sepolia
+					verified, verifyErr := blockchain.VerifyTransactionOnSepolia(
+						tx.TransactionID,
+						tx.Type,
+						tx.FromAccount,
+						tx.ToAccount,
+						int64(tx.Amount),
+					)
+					if verifyErr == nil && verified {
+						blockchainVerified = true
+					}
+				}
 			}
 		}
 

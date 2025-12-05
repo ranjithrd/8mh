@@ -388,3 +388,25 @@ func GetTransactionFromSepolia(transactionID string) (map[string]interface{}, er
 		"submitted_by":   tx.SubmittedBy.Hex(),
 	}, nil
 }
+
+// TransactionExistsOnSepolia checks if a transaction already exists on Sepolia
+func TransactionExistsOnSepolia(transactionID string) (bool, error) {
+	if client == nil {
+		return false, fmt.Errorf("ethereum client not initialized")
+	}
+
+	// Try to get the transaction - if it exists, the transactionId field will be non-empty
+	txData, err := GetTransactionFromSepolia(transactionID)
+	if err != nil {
+		// If there's an error, assume it doesn't exist
+		return false, nil
+	}
+
+	// Check if the transaction ID is non-empty (indicates it exists)
+	txID, ok := txData["transaction_id"].(string)
+	if !ok || txID == "" {
+		return false, nil
+	}
+
+	return true, nil
+}

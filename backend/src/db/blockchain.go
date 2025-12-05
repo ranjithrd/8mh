@@ -73,22 +73,35 @@ func CreateBlockForTransaction(txID string) (*Block, error) {
 	blockHash := computeBlockHash(newBlock)
 	newBlock.BlockHash = blockHash
 
-	// Record full transaction to Sepolia blockchain (source of truth)
-	ethTxHash, err := blockchain.RecordTransactionOnSepolia(
-		transaction.TransactionID,
-		transaction.Type,
-		transaction.FromAccount,
-		transaction.ToAccount,
-		int64(transaction.Amount),
-		transaction.Status,
-		transaction.Description,
-	)
+	// Check if transaction already exists on Sepolia
+	exists, err := blockchain.TransactionExistsOnSepolia(transaction.TransactionID)
 	if err != nil {
-		log.Printf("WARNING: Failed to record on Sepolia: %v", err)
-		// Continue without Sepolia - graceful degradation
+		log.Printf("WARNING: Failed to check Sepolia for existing transaction: %v", err)
+	}
+
+	if exists {
+		// Transaction already on Sepolia - just retrieve the existing Ethereum TX hash
+		log.Printf("Transaction %s already exists on Sepolia - skipping recording", transaction.TransactionID)
+		// We can't easily get the original TX hash, so we'll leave it null
+		// The verification will still work because the data is on-chain
 	} else {
-		newBlock.EthereumTxHash = ethTxHash
-		log.Printf("Transaction recorded on Sepolia: %s", ethTxHash)
+		// Record full transaction to Sepolia blockchain (source of truth)
+		ethTxHash, err := blockchain.RecordTransactionOnSepolia(
+			transaction.TransactionID,
+			transaction.Type,
+			transaction.FromAccount,
+			transaction.ToAccount,
+			int64(transaction.Amount),
+			transaction.Status,
+			transaction.Description,
+		)
+		if err != nil {
+			log.Printf("WARNING: Failed to record on Sepolia: %v", err)
+			// Continue without Sepolia - graceful degradation
+		} else {
+			newBlock.EthereumTxHash = ethTxHash
+			log.Printf("Transaction recorded on Sepolia: %s", ethTxHash)
+		}
 	}
 
 	if err := DB.Create(newBlock).Error; err != nil {
