@@ -4,6 +4,7 @@ import (
 	"backend/src/db"
 	"backend/src/repos"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -352,6 +353,25 @@ func UpdateLoanStatus(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update loan status"})
 	}
 
+	// Create blockchain block for loan status change
+	transactionID := transactionGenerator()
+	transaction := &db.Transaction{
+		TransactionID: transactionID,
+		Type:          "loan_status_change",
+		FromAccount:   fmt.Sprintf("LOAN-%d", loanID),
+		ToAccount:     req.Status,
+		Amount:        0,
+		Status:        "completed",
+		Description:   fmt.Sprintf("Loan status changed to %s by manager %d", req.Status, user.ID),
+	}
+	if err := db.DB.Create(transaction).Error; err != nil {
+		log.Printf("WARNING: Failed to create transaction for loan status change: %v", err)
+	} else {
+		if _, err := db.CreateBlockForTransaction(transactionID); err != nil {
+			log.Printf("WARNING: Failed to create blockchain block for loan status change: %v", err)
+		}
+	}
+
 	message := fmt.Sprintf("Loan %s successfully", req.Status)
 	return c.JSON(http.StatusOK, UpdateLoanStatusResponse{
 		OK:      true,
@@ -507,6 +527,11 @@ func AddDeposit(c echo.Context) error {
 
 	if err := depositRepoHandler.UpdateUserBalance(req.UserID, req.Amount); err != nil {
 		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to update user balance"})
+	}
+
+	// Create blockchain block for deposit
+	if _, err := db.CreateBlockForTransaction(transactionID); err != nil {
+		log.Printf("WARNING: Failed to create blockchain block for deposit: %v", err)
 	}
 
 	return c.JSON(http.StatusOK, AddDepositResponse{
