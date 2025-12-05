@@ -45,7 +45,7 @@ const docTemplate = `{
         },
         "/api/v1/auth/login": {
             "post": {
-                "description": "Send OTP to the provided phone number for authentication",
+                "description": "Authenticate with phone number and password",
                 "consumes": [
                     "application/json"
                 ],
@@ -55,7 +55,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Request OTP for phone number",
+                "summary": "Login with phone and password",
                 "parameters": [
                     {
                         "description": "Login Request",
@@ -80,10 +80,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/handlers.ErrorResponse"
                         }
                     },
-                    "429": {
-                        "description": "Rate limit exceeded",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handlers.LoginResponse"
+                            "$ref": "#/definitions/handlers.ErrorResponse"
                         }
                     },
                     "500": {
@@ -1064,9 +1064,14 @@ const docTemplate = `{
         "handlers.LoginRequest": {
             "type": "object",
             "required": [
+                "password",
                 "phone_number"
             ],
             "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "password123"
+                },
                 "phone_number": {
                     "type": "string",
                     "example": "+1234567890"
@@ -1079,10 +1084,6 @@ const docTemplate = `{
                 "ok": {
                     "type": "boolean",
                     "example": true
-                },
-                "request_id": {
-                    "type": "integer",
-                    "example": 123
                 }
             }
         },
